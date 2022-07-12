@@ -1,0 +1,113 @@
+version: "3"
+services:
+  composer:
+    image: composer
+    volumes:
+      - ./backend:/app
+      - ~/.ssh:/root/.ssh
+      - ~/.composer:/tmp
+    command: install
+
+  backend:
+    image: craftcms/php-fpm:8.1-dev
+    volumes:
+      - ./backend:/var/www/backend
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    logging:
+      options:
+        max-size: "1m"
+        max-file: "3"
+    environment:
+      PHP_UPLOAD_MAX_FILESIZE: 128M
+      PHP_POST_MAX_SIZE: 128M
+      PHP_MAX_INPUT_VARS: 10000
+    depends_on:
+      - mariadb
+      - redis
+
+  mariadb:
+    image: mariadb
+    ports:
+      - "3307:3306"
+    volumes:
+      - dbdata:/var/lib/mysql:delegated
+    environment:
+      MYSQL_DATABASE: craft
+      MYSQL_USER: craft
+      MYSQL_PASSWORD: craft
+      MYSQL_ROOT_PASSWORD: root
+    cap_add:
+      - SYS_NICE
+    deploy:
+      resources:
+        limits:
+          memory: 512M
+    logging:
+      options:
+        max-size: "1m"
+        max-file: "3"
+
+  webserver:
+    image: nginx:alpine
+    ports:
+      - "8080:80"
+    volumes:
+      - ./backend:/var/www/backend:cached
+      - ./config/webserver/local/:/etc/nginx/conf.d/
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      options:
+        max-size: "1m"
+        max-file: "3"
+    depends_on:
+      - backend
+      - queue
+
+  queue:
+    image: ghcr.io/bravoure/craftcms-cli-ffmpeg:8.1
+    volumes:
+      - ./backend:/app
+    env_file: backend/.env
+    command: sh -c 'sleep 30 && php craft queue/listen --verbose=1 --interactive=0 --isolate=1'
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 1024M
+    logging:
+      options:
+        max-size: "1m"
+        max-file: "3"
+    depends_on:
+      - mariadb
+      - redis
+
+  redis:
+    image: redis:alpine
+    ports:
+      - '6379:6379'
+    deploy:
+      resources:
+        limits:
+          memory: 128M
+    logging:
+      options:
+        max-size: "1m"
+        max-file: "3"
+
+  php-cs-fixer:
+    image: jakzal/phpqa
+    volumes:
+      - ./backend:/backend
+    command: php-cs-fixer fix
+    working_dir: /backend
+
+volumes:
+  dbdata:
+    driver: local
