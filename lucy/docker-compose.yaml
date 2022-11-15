@@ -41,7 +41,8 @@ services:
       - '3307:3306'
     volumes:
       - mysqlData:/var/lib/mysql
-    command: mysqld --sql_mode="ONLY_FULL_GROUP_BY"
+    command:
+      - --sql_mode=
 
   webserver:
     image: nginx:alpine
