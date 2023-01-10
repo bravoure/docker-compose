@@ -96,7 +96,7 @@ services:
         max-file: "3"
 
   php-cs-fixer:
-    image: jakzal/phpqa
+    image: jakzal/phpqa:php8.1-alpine
     volumes:
       - ./backend:/backend
     command: php-cs-fixer fix
